@@ -1948,6 +1948,39 @@ static int cam_s_stream(struct v4l2_subdev *sd, int enable)
 
 		return err;
 	}
+	/*
+	 * The MCU is configured from set_fmt, which the VI only calls for
+	 * VIDIOC_S_FMT. A client that streams the current format without
+	 * setting it (v4l2-ctl, or any first use after boot) would otherwise
+	 * start an unconfigured MCU and the error-recovery path would retry
+	 * with the zeroed format. Configure from the active format instead.
+	 */
+	if (!priv->format_fourcc) {
+		int mode, found = 0;
+
+		for (mode = 0; mode < s_data->numfmts; mode++) {
+			if (priv->mcu_cam_frmfmt[mode].size.width == s_data->fmt_width &&
+			    priv->mcu_cam_frmfmt[mode].size.height == s_data->fmt_height) {
+				priv->frmfmt_mode = priv->mcu_cam_frmfmt[mode].mode;
+				found = 1;
+				break;
+			}
+		}
+		if (!found) {
+			dev_err(&client->dev, "%s: no MCU mode for %dx%d\n",
+				__func__, s_data->fmt_width, s_data->fmt_height);
+			return -EINVAL;
+		}
+		priv->format_fourcc = V4L2_PIX_FMT_UYVY;
+		err = gen_mcu_stream_config(client, priv);
+		if (err < 0) {
+			priv->format_fourcc = 0;
+			dev_err(&client->dev, "%s: stream config for %dx%d failed\n",
+				__func__, s_data->fmt_width, s_data->fmt_height);
+			return err;
+		}
+	}
+
 	/* Perform Stream On Sequence - if any  */
 
 	err = mcu_cam_stream_on(client);{
