@@ -71,6 +71,7 @@ python3 "$REPO_ROOT/scripts/check-modversions.py" \
   --oot-symvers "$oot_symvers" \
   --camera-symvers build/work/nvidia-oot/drivers/media/platform/tegra/camera/Module.symvers \
   --stock-modules "$stock_modules" \
+  --stock-camera "$stock_modules/drivers/media/platform/tegra/camera/tegra-camera.ko" \
   build/tegra-camera.ko build/ecam_yuv_gmsl.ko
 
 echo "== Checking depmod prefers the rebuilt modules"

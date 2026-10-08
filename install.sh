@@ -242,6 +242,7 @@ python3 "$REPO_ROOT/scripts/check-modversions.py" \
   --oot-symvers "$OOT_SYMVERS" \
   --camera-symvers "$build_dir/work/nvidia-oot/drivers/media/platform/tegra/camera/Module.symvers" \
   --stock-modules "/lib/modules/$KVER/updates" \
+  --stock-camera "/lib/modules/$KVER/updates/drivers/media/platform/tegra/camera/tegra-camera.ko" \
   "$build_dir/tegra-camera.ko" "$build_dir/ecam_yuv_gmsl.ko" \
   || die 'symbol verification failed; nothing was installed'
 

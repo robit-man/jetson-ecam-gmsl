@@ -79,6 +79,9 @@ def main() -> int:
                         help="Module.symvers produced by the patched tegra-camera build")
     parser.add_argument("--stock-modules", type=Path,
                         help="installed module tree to check stock dependants against")
+    parser.add_argument("--stock-camera", type=Path,
+                        help="NVIDIA's packaged tegra-camera.ko; the patched build must "
+                             "import everything it imports (the e-con patch only adds code)")
     parser.add_argument("modules", type=Path, nargs="+")
     args = parser.parse_args()
 
@@ -111,6 +114,15 @@ def main() -> int:
     print(f"tegra-camera exports: {len(stock_camera)} stock, {len(dropped)} dropped, "
           f"{len(changed)} changed, added {added}")
     failures += bool(dropped or changed)
+
+    if args.stock_camera:
+        patched = next((m for m in args.modules if m.name == "tegra-camera.ko"), None)
+        if patched is not None:
+            missing = sorted(set(module_imports(args.stock_camera)) - set(module_imports(patched)))
+            print(f"imports missing versus stock tegra-camera.ko: {len(missing)}")
+            for name in missing[:15]:
+                print(f"  missing (feature compiled out?): {name}")
+            failures += bool(missing)
 
     if args.stock_modules:
         dependants = broken = 0

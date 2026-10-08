@@ -64,10 +64,21 @@ make -s -j"$JOBS" ARCH=arm64 \
   NV_KERNEL_SOURCES="$KERNEL_HEADERS" NV_KERNEL_OUTPUT="$KERNEL_HEADERS" \
   -f "$CONFTEST/nvidia/Makefile"
 
-# Flags that nvidia-oot/Makefile and its noble/l4t configs apply to every
-# subdirectory; building one subdirectory directly must supply them itself.
+# Building one subdirectory directly skips the parent Makefiles, so supply
+# every flag they apply on the way down to drivers/media/platform/tegra:
+#   nvidia-oot/Makefile (+ configs/Makefile.config.noble): includes, C90 decls
+#   drivers/Makefile: host1x/host/hwpm include paths
+#   drivers/media/Makefile: -DCONFIG_* for media features the kernel builds
+#     as modules (=m does not define the plain CONFIG_ symbol)
 oot_flags="-I$WORK/nvidia-oot/include -I$CONFTEST -DCONFIG_VIDEO_ECAM"
 oot_flags+=" -Werror=declaration-after-statement"
+oot_flags+=" -I$WORK/nvidia-oot/drivers/gpu/host1x/hw/ -I$WORK/nvidia-oot/drivers/video/tegra/host/"
+for option in V4L2_ASYNC V4L2_FWNODE VIDEOBUF2_DMA_CONTIG; do
+  if grep -Eq "^CONFIG_${option}=(y|m)$" "$KERNEL_HEADERS/.config"; then
+    oot_flags+=" -DCONFIG_${option}"
+  fi
+done
+printf 'NVIDIA media flags: %s\n' "$oot_flags"
 
 printf 'Building patched tegra-camera.ko...\n'
 make -j"$JOBS" ARCH=arm64 -C "$KERNEL_HEADERS" M="$CAMERA" \
