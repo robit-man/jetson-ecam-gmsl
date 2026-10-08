@@ -190,8 +190,8 @@ for package in nvidia-l4t-kernel-headers nvidia-l4t-kernel-oot-headers; do
 done
 if ((${#missing[@]})); then
   log "Installing build prerequisites: ${missing[*]}"
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive apt-get install -y "${missing[@]}"
+  apt-get -o DPkg::Lock::Timeout=600 update
+  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=600 install -y "${missing[@]}"
 fi
 
 KERNEL_HEADERS=/lib/modules/$KVER/build
