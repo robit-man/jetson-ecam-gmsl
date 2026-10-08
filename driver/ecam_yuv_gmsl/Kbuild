@@ -1,0 +1,7 @@
+# NVIDIA_OOT points at the nvidia-oot tree the camera framework headers come from.
+ccflags-y += -Wno-unused-variable
+ccflags-y += -I$(NVIDIA_OOT)/drivers/media/platform/tegra
+ccflags-y += -I$(NVIDIA_OOT)/drivers/video/tegra/camera
+
+obj-m += ecam_yuv_gmsl.o
+ecam_yuv_gmsl-objs := ecam_yuv_gmsl_common.o serdes.o pca9685.o

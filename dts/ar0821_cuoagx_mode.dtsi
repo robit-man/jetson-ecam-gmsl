@@ -1,0 +1,101 @@
+					mode0 {		// MODE_1280X720
+						mclk_khz = "24000";
+						num_lanes = "2";
+						tegra_sinterface = TEGRA_SINTERFACE;
+						phy_mode = "DPHY";
+						discontinuous_clk = "no";
+						dpcm_enable = "false";
+						cil_settletime = "0";
+						dynamic_pixel_bit_depth = "16";
+						csi_pixel_bit_depth = "16";
+						mode_type = "yuv";
+						pixel_phase = "uyvy";
+
+						active_w = "1280";
+						active_h = "720";
+						readout_orientation = "90";
+						pix_clk_hz = "150000000";
+						serdes_pix_clk_hz = "162500000";
+						/* Below mode parameter not used for econ UYVY camera sensor */ 
+						line_length = "1280";
+						inherent_gain = "1";
+						mclk_multiplier = "6";
+
+						min_gain_val = "0"; /* dB */
+						max_gain_val = "48"; /* dB */
+						min_hdr_ratio = "1";
+						max_hdr_ratio = "1";
+						min_framerate = "1.5";
+						max_framerate = "60";
+						min_exp_time = "60";
+						max_exp_time = "660000";
+						//embedded_metadata_height = "0";
+					};
+					mode1 {		// MODE_1920X1080
+						mclk_khz = "24000";
+						num_lanes = "2";
+						tegra_sinterface = TEGRA_SINTERFACE;
+						phy_mode = "DPHY";
+						discontinuous_clk = "no";
+						dpcm_enable = "false";
+						cil_settletime = "0";
+						dynamic_pixel_bit_depth = "16";
+						csi_pixel_bit_depth = "16";
+						mode_type = "yuv";
+						pixel_phase = "uyvy";
+
+						active_w = "1920";
+						active_h = "1080";
+						readout_orientation = "0";
+						deskew_initial_enable = "false";
+						pix_clk_hz = "150000000";
+						serdes_pix_clk_hz = "162500000";
+						/* Below mode parameter not used for econ UYVY camera sensor */ 
+						line_length = "1920";
+						inherent_gain = "1";
+						mclk_multiplier = "6";
+
+						min_gain_val = "0"; /* dB */
+						max_gain_val = "48"; /* dB */
+						min_hdr_ratio = "1";
+						max_hdr_ratio = "1";
+						min_framerate = "1.5";
+						max_framerate = "60";
+						min_exp_time = "60";
+						max_exp_time = "660000";
+					};
+					mode2 {		// MODE_3840X2160
+						mclk_khz = "24000";
+						num_lanes = "2";
+						tegra_sinterface = TEGRA_SINTERFACE;
+						phy_mode = "DPHY";
+						discontinuous_clk = "no";
+						dpcm_enable = "false";
+						cil_settletime = "0";
+						dynamic_pixel_bit_depth = "16";
+						csi_pixel_bit_depth = "16";
+						mode_type = "yuv";
+						pixel_phase = "uyvy";
+
+						active_w = "3840";
+						active_h = "2160";
+						readout_orientation = "0";
+						deskew_initial_enable = "false";
+						pix_clk_hz = "150000000";
+						serdes_pix_clk_hz = "162500000";
+						/* Below mode parameter not used for econ UYVY camera sensor */ 
+						line_length = "3840";
+						inherent_gain = "1";
+						mclk_multiplier = "6";
+
+						min_gain_val = "0"; /* dB */
+						max_gain_val = "48"; /* dB */
+						min_hdr_ratio = "1";
+						max_hdr_ratio = "1";
+						min_framerate = "1.5";
+						max_framerate = "16";
+						min_exp_time = "16";
+						max_exp_time = "660000";
+					};
+
+

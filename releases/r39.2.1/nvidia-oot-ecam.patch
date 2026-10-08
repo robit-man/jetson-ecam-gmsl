@@ -1,0 +1,162 @@
+diff --git a/nvidia-oot/drivers/media/platform/tegra/camera/tegracam_ctrls.c b/nvidia-oot/drivers/media/platform/tegra/camera/tegracam_ctrls.c
+index 56082a9..846a3a2 100644
+--- a/nvidia-oot/drivers/media/platform/tegra/camera/tegracam_ctrls.c
++++ b/nvidia-oot/drivers/media/platform/tegra/camera/tegracam_ctrls.c
+@@ -317,11 +317,11 @@ static int tegracam_set_ctrls(struct tegracam_ctrl_handler *handler,
+ 		dev_err(s_data->dev, "power status query unsupported\n");
+ 		return -ENOTTY;
+ 	}
+-
++#ifndef CONFIG_VIDEO_ECAM
+ 	/* power state is turned off, do not program sensor now */
+ 	if (!status)
+ 		return 0;
+-
++#endif
+ 	ctrlprops =
+ 		&s_data->sensor_props.sensor_modes[0].control_properties;
+ 
+diff --git a/nvidia-oot/drivers/media/platform/tegra/camera/vi/channel.c b/nvidia-oot/drivers/media/platform/tegra/camera/vi/channel.c
+index 33700bb..3b1ab04 100644
+--- a/nvidia-oot/drivers/media/platform/tegra/camera/vi/channel.c
++++ b/nvidia-oot/drivers/media/platform/tegra/camera/vi/channel.c
+@@ -224,8 +224,8 @@ static void tegra_channel_fmt_align(struct tegra_channel *chan,
+ 	if (chan->vi->fops->vi_stride_align)
+ 		chan->vi->fops->vi_stride_align(&bpl);
+ 
+-	if (!*bytesperline)
+-		*bytesperline = bpl;
++	/* e-con YUV GMSL cameras require the VI-aligned stride. */
++	*bytesperline = bpl;
+ 
+ 	/* Don't clamp the width based on bpl as stride and width can be
+ 	 * different. Aligned width also may force a sensor mode change other
+diff --git a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
+index 69d7652..871ab61 100644
+--- a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
++++ b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
+@@ -32,6 +32,19 @@
+ 
+ #define CAPTURE_TIMEOUT_MS	2500
+ 
++/* For Econ stream monitor wait Queue */
++
++#define ECON_NUM_OF_ERR_CNT	5
++#define DEV_NAME_CHAR_SKIP 	11
++#define DEV_NAME_CHAR 		17
++
++wait_queue_head_t econ_err_hand_q;
++int econ_frame_err_track = 0;
++int econ_num_uncorr_err = 0;
++char econ_dev_name[32];
++char econ_err_dev_name[32];
++static uint8_t check_queue_init = 0;
++
+ static const struct vi_capture_setup default_setup = {
+ 	.channel_flags = 0
+ 	| CAPTURE_CHANNEL_FLAG_VIDEO
+@@ -148,7 +161,8 @@ static const struct v4l2_ctrl_ops vi5_ctrl_ops = {
+ };
+ 
+ static const struct v4l2_ctrl_config vi5_custom_ctrls[] = {
+-	{
++#ifndef CONFIG_VIDEO_ECAM
++    {
+ 		.ops = &vi5_ctrl_ops,
+ 		.id = TEGRA_CAMERA_CID_WRITE_ISPFORMAT,
+ 		.name = "Write ISP format",
+@@ -210,6 +224,7 @@ static const struct v4l2_ctrl_config vi5_custom_ctrls[] = {
+ 		.max = 0x7FFFFFFF,
+ 		.step = 1,
+ 	},
++#endif
+ };
+ 
+ static int vi5_add_ctrls(struct tegra_channel *chan)
+@@ -284,6 +299,13 @@ static int vi5_channel_setup_queue(struct tegra_channel *chan,
+ {
+ 	int ret = 0;
+ 
++    /* Initialize Econ wait queue */
++	if(check_queue_init == 0){
++		init_waitqueue_head(&econ_err_hand_q);
++		printk("Initialized E-con wait queue\n");
++		check_queue_init = 1;
++	}
++    
+ 	*nbuffers = clamp(*nbuffers, CAPTURE_MIN_BUFFERS, CAPTURE_MAX_BUFFERS);
+ 
+ 	ret = tegra_channel_alloc_buffer_queue(chan, *nbuffers);
+@@ -609,14 +631,41 @@ static void vi5_capture_dequeue(struct tegra_channel *chan,
+ 		buf->vb2_state = VB2_BUF_STATE_ERROR;
+ 	else
+ 		buf->vb2_state = VB2_BUF_STATE_DONE;
+-	/* Read EOF from capture descriptor */
++
++
++	if(econ_num_uncorr_err)
++	{
++		memcpy(econ_err_dev_name,
++			chan->video->name + DEV_NAME_CHAR_SKIP, DEV_NAME_CHAR);
++		if(!strcmp(econ_err_dev_name,econ_dev_name))
++		{
++			econ_num_uncorr_err = 0;
++		}
++	}
++
++    /* Read EOF from capture descriptor */
+ 	ts = ns_to_timespec64((s64)descr->status.eof_timestamp);
+ 	trace_tegra_channel_capture_frame("eof", &ts);
+ 
+ 	goto rel_buf;
+ 
+ uncorr_err:
+-	spin_lock_irqsave(&chan->capture_state_lock, flags);
++
++    /* Monitor and Set Streaming monitor flags for ECON cam */
++	printk("video device name=%s \n", chan->video->name);
++	memcpy(econ_dev_name,
++			chan->video->name + DEV_NAME_CHAR_SKIP, DEV_NAME_CHAR);
++
++	econ_num_uncorr_err++;
++	printk("Uncorr_ERR_Occured %d Times\n", econ_num_uncorr_err);
++	if(econ_num_uncorr_err > ECON_NUM_OF_ERR_CNT && econ_frame_err_track == 0){
++		econ_frame_err_track = 1;
++		printk("setting econ_frame_err_track\n");
++		wake_up_interruptible(&econ_err_hand_q);
++	}
++
++//reset:
++    spin_lock_irqsave(&chan->capture_state_lock, flags);
+ 	if (err == -ETIMEDOUT) {
+ 		chan->capture_state = CAPTURE_TIMEOUT;
+ 		buf->vb2_state = VB2_BUF_STATE_QUEUED;
+@@ -633,6 +682,13 @@ rel_buf:
+ static void vi5_unit_get_device_handle(struct platform_device *pdev,
+ 			uint32_t csi_stream_id, struct device **dev);
+ 
++/* Export the symbols to use in Sensor driver */
++EXPORT_SYMBOL(econ_dev_name);
++EXPORT_SYMBOL(econ_err_hand_q);
++EXPORT_SYMBOL(econ_num_uncorr_err);
++EXPORT_SYMBOL(econ_frame_err_track);
++
++
+ static int vi5_channel_error_recover(struct tegra_channel *chan,
+ 	bool queue_error)
+ {
+diff --git a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_formats.h b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_formats.h
+index d040393..11cb425 100644
+--- a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_formats.h
++++ b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_formats.h
+@@ -154,8 +154,8 @@ static const struct tegra_video_format vi5_video_formats[] = {
+ 				YUV422_8, YVYU, "YUV 4:2:2"),
+ 	TEGRA_VIDEO_FORMAT(YUV422, 16, UYVY8_1X16, 1, 1, T_Y8__V8U8_N422,
+ 				YUV422_8, NV16, "NV16"),
+-	TEGRA_VIDEO_FORMAT(YUV422, 16, UYVY8_2X8, 2, 1, T_U8_Y8__V8_Y8,
+-				YUV422_8, UYVY, "YUV 4:2:2 UYVY"),
++//	TEGRA_VIDEO_FORMAT(YUV422, 16, UYVY8_2X8, 2, 1, T_U8_Y8__V8_Y8,
++//				YUV422_8, UYVY, "YUV 4:2:2 UYVY"),
+ 	TEGRA_VIDEO_FORMAT(YUV422, 16, VYUY8_2X8, 2, 1, T_V8_Y8__U8_Y8,
+ 				YUV422_8, VYUY, "YUV 4:2:2 VYUY"),
+ 	TEGRA_VIDEO_FORMAT(YUV422, 16, YUYV8_2X8, 2, 1, T_Y8_U8__Y8_V8,

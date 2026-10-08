@@ -1,0 +1,4 @@
+.verify/
+*.ko
+*.dtbo
+*.pre.dts

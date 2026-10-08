@@ -1,0 +1,23 @@
+name: verify
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        release: [r39.2.1]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential bc bison flex \
+            kmod libelf-dev libssl-dev device-tree-compiler patch python3 curl
+      - name: Build and verify against NVIDIA L4T ${{ matrix.release }}
+        run: scripts/verify-release.sh ${{ matrix.release }}
