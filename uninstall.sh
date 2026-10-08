@@ -13,6 +13,10 @@ fi
 # shellcheck disable=SC1091
 source "$STATE_DIR/installed"
 
+systemctl disable jetson-ecam-gmsl.service >/dev/null 2>&1 || true
+rm -f /etc/systemd/system/jetson-ecam-gmsl.service
+systemctl daemon-reload
+rm -rf /usr/local/lib/jetson-ecam-gmsl
 rm -f "$DEPMOD_CONF"
 rm -rf "/lib/modules/$KVER/extra/ecam-gmsl"
 depmod -a "$KVER"

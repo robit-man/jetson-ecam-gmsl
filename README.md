@@ -63,6 +63,13 @@ driver.
 
 Nothing is installed unless both gates pass. `--build-only` stops after them.
 
+`--if-needed` exits immediately when this kernel, camera and source are
+already installed; deploy tools call it on every run. Without `--camera`, the
+previously installed camera is reused. The installer also enables
+`jetson-ecam-gmsl.service`, which checks at boot whether the running kernel
+still matches the installed modules. After a kernel update it rebuilds them
+for the new kernel and reboots once to load them.
+
 ### Other L4T releases
 
 The installer selects `releases/r<L4T>/` for the running release. For a newer

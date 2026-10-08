@@ -15,21 +15,28 @@ STATE_DIR=/var/lib/jetson-ecam-gmsl
 CACHE_DIR=/var/cache/jetson-ecam-gmsl
 MODULE_SUBDIR=extra/ecam-gmsl
 DEPMOD_CONF=/etc/depmod.d/ecam-gmsl.conf
-CAMERA=81
+CAMERA=""
 VENDOR_PACKAGE=""
 ASSUME_YES=0
 REBOOT=0
 BUILD_ONLY=0
+IF_NEEDED=0
+AFTER_KERNEL_CHANGE=0
+INSTALL_ROOT=/usr/local/lib/jetson-ecam-gmsl
+BOOT_UNIT=/etc/systemd/system/jetson-ecam-gmsl.service
 ORIGINAL_ARGS=("$@")
 
 usage() {
   cat <<'EOF'
 Usage: sudo ./install.sh [options]
 
-  --camera 20|21|25|81   e-con product (NileCAM/STURDeCAM number; default 81)
+  --camera 20|21|25|81   e-con product (NileCAM/STURDeCAM number); defaults to
+                         the previously installed camera, then $ECAM_CAMERA, then 81
   --vendor-package PATH  e-con release tarball or directory holding the MCU
                          firmware (*_mcu_fw.bin); searched automatically
   --build-only           build and verify, but install nothing
+  --if-needed            do nothing when this kernel, camera and source are
+                         already installed (used by deploy tools and at boot)
   --yes                  do not ask before configuring the boot overlay
   --reboot               reboot when installation finishes
   -h, --help             show this help
@@ -47,6 +54,8 @@ while (($#)); do
     --camera) CAMERA=${2:-}; shift ;;
     --vendor-package) VENDOR_PACKAGE=${2:-}; shift ;;
     --build-only) BUILD_ONLY=1 ;;
+    --if-needed) IF_NEEDED=1 ;;
+    --after-kernel-change) IF_NEEDED=1; AFTER_KERNEL_CHANGE=1; ASSUME_YES=1 ;;
     --yes|-y) ASSUME_YES=1 ;;
     --reboot) REBOOT=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -54,6 +63,11 @@ while (($#)); do
   esac
   shift
 done
+
+if [[ -z $CAMERA && -r $STATE_DIR/installed ]]; then
+  CAMERA=$(sed -n 's/^CAMERA=//p' "$STATE_DIR/installed")
+fi
+CAMERA=${CAMERA:-${ECAM_CAMERA:-81}}
 
 case $CAMERA in
   20) SENSOR=ar0230 ;;
@@ -84,6 +98,24 @@ RELEASE=r$l4t
 KVER=$(uname -r)
 log "Detected L4T $l4t, kernel $KVER"
 
+# Identity of what would be installed: the driver, patches, overlays and
+# scripts in this checkout. A kernel, camera or source change forces a rebuild.
+SOURCE_ID=$(cd "$REPO_ROOT" && find driver dts releases scripts install.sh -type f \
+  ! -name '*.pyc' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
+previous_kver=""
+if [[ -r $STATE_DIR/installed ]]; then
+  previous_kver=$(sed -n 's/^KVER=//p' "$STATE_DIR/installed")
+fi
+if ((IF_NEEDED)) && [[ -r $STATE_DIR/installed ]] \
+  && grep -qx "KVER=$KVER" "$STATE_DIR/installed" \
+  && grep -qx "CAMERA=$CAMERA" "$STATE_DIR/installed" \
+  && grep -qx "SOURCE_ID=$SOURCE_ID" "$STATE_DIR/installed" \
+  && [[ $(modinfo -n -k "$KVER" tegra_camera 2>/dev/null) == */$MODULE_SUBDIR/tegra-camera.ko ]] \
+  && grep -q "$OVERLAY.dtbo" /boot/extlinux/extlinux.conf; then
+  log "Camera $CAMERA is already installed for $KVER; nothing to do"
+  exit 0
+fi
+
 # Use the patch validated for this exact release; otherwise try the newest
 # validated patch from the same major L4T line. The no-fuzz patch apply, the
 # symbol-CRC gate, and the overlay-apply gate below decide whether it fits,
@@ -110,6 +142,7 @@ find_firmware() {
   local search=()
   [[ -n $VENDOR_PACKAGE ]] && search+=("$VENDOR_PACKAGE")
   search+=("$REPO_ROOT" "$PWD" "$SUDO_HOME/Desktop" "$SUDO_HOME/Downloads" "$SUDO_HOME")
+  [[ -f /lib/firmware/$FIRMWARE ]] && search+=("/lib/firmware/$FIRMWARE")
   for candidate in "${search[@]}"; do
     [[ -e $candidate ]] || continue
     if [[ -f $candidate && $candidate == *.bin ]]; then
@@ -241,7 +274,9 @@ resolved=$(modinfo -n -k "$KVER" tegra_camera)
 [[ $resolved == */$MODULE_SUBDIR/tegra-camera.ko ]] \
   || die "depmod still resolves tegra_camera to $resolved"
 
-install -D -m 0644 "$firmware_src" "/lib/firmware/$FIRMWARE"
+if [[ $(realpath "$firmware_src") != "/lib/firmware/$FIRMWARE" ]]; then
+  install -D -m 0644 "$firmware_src" "/lib/firmware/$FIRMWARE"
+fi
 install -m 0644 "$build_dir/$OVERLAY.dtbo" "/boot/$OVERLAY.dtbo"
 
 # --- boot overlay --------------------------------------------------------------
@@ -311,7 +346,31 @@ fi
 
 grep -q "$OVERLAY.dtbo" "$extlinux" || die "boot configuration does not reference $OVERLAY.dtbo"
 
+# Keep a stable copy of this installer and rebuild automatically at boot
+# whenever the running kernel no longer matches the installed modules.
+mkdir -p "$INSTALL_ROOT"
+if [[ $(realpath "$REPO_ROOT") != "$INSTALL_ROOT" ]]; then
+  tar -C "$REPO_ROOT" --exclude=.git --exclude=.verify -cf - . | tar -C "$INSTALL_ROOT" -xf -
+fi
+cat >"$BOOT_UNIT" <<UNIT
+[Unit]
+Description=Rebuild e-con GMSL camera modules after a kernel change
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=$INSTALL_ROOT/install.sh --after-kernel-change
+TimeoutStartSec=3600
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+systemctl daemon-reload
+systemctl enable jetson-ecam-gmsl.service >/dev/null 2>&1
+
 cat >"$STATE_DIR/installed" <<EOF
+SOURCE_ID=$SOURCE_ID
 RELEASE=$RELEASE
 PATCH_RELEASE=$PATCH_RELEASE
 KVER=$KVER
@@ -321,6 +380,12 @@ FIRMWARE=$FIRMWARE
 EOF
 
 log "Installed for L4T $l4t / $KVER. Reboot to load the camera overlay."
+# After a kernel update the camera cannot work until the rebuilt modules are
+# loaded, so the boot-time rebuild finishes with exactly one reboot.
+if ((AFTER_KERNEL_CHANGE)) && [[ -n $previous_kver && $previous_kver != "$KVER" ]]; then
+  log "Kernel changed from $previous_kver; rebooting once to load the rebuilt modules"
+  REBOOT=1
+fi
 log 'After reboot: ls /dev/video*; v4l2-ctl --list-devices; dmesg | grep -i ecam'
 if ((REBOOT)); then
   systemctl reboot
