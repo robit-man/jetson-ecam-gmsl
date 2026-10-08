@@ -245,6 +245,10 @@ python3 "$REPO_ROOT/scripts/check-modversions.py" \
   --stock-camera "/lib/modules/$KVER/updates/drivers/media/platform/tegra/camera/tegra-camera.ko" \
   "$build_dir/tegra-camera.ko" "$build_dir/ecam_yuv_gmsl.ko" \
   || die 'symbol verification failed; nothing was installed'
+# Without the VI capture timeout control, capture_timeout_ms stays 0 and every
+# capture request times out immediately.
+grep -aq "Override capture timeout ms" "$build_dir/tegra-camera.ko" \
+  || die 'patched tegra-camera.ko lost the VI capture timeout control; nothing was installed'
 
 log "Compiling and test-applying the $SENSOR overlay..."
 "$REPO_ROOT/scripts/build-overlay.sh" --hardware "$src_dir/hardware/nvidia" \

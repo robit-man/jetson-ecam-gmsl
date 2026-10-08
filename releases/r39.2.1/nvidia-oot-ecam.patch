@@ -32,7 +32,7 @@ index 33700bb..3b1ab04 100644
  	/* Don't clamp the width based on bpl as stride and width can be
  	 * different. Aligned width also may force a sensor mode change other
 diff --git a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
-index 69d7652..871ab61 100644
+index 69d7652..086959d 100644
 --- a/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
 +++ b/nvidia-oot/drivers/media/platform/tegra/camera/vi/vi5_fops.c
 @@ -32,6 +32,19 @@
@@ -65,15 +65,17 @@ index 69d7652..871ab61 100644
  		.ops = &vi5_ctrl_ops,
  		.id = TEGRA_CAMERA_CID_WRITE_ISPFORMAT,
  		.name = "Write ISP format",
-@@ -210,6 +224,7 @@ static const struct v4l2_ctrl_config vi5_custom_ctrls[] = {
- 		.max = 0x7FFFFFFF,
+@@ -200,6 +214,9 @@ static const struct v4l2_ctrl_config vi5_custom_ctrls[] = {
  		.step = 1,
+ 		.dims = { SENSOR_CTRL_BLOB_SIZE },
  	},
 +#endif
- };
- 
- static int vi5_add_ctrls(struct tegra_channel *chan)
-@@ -284,6 +299,13 @@ static int vi5_channel_setup_queue(struct tegra_channel *chan,
++	/* Keep the capture timeout: without it capture_timeout_ms stays 0 and
++	 * every capture request times out immediately. */
+ 	{
+ 		.ops = &vi5_ctrl_ops,
+ 		.id = TEGRA_CAMERA_CID_VI_CAPTURE_TIMEOUT,
+@@ -284,6 +301,13 @@ static int vi5_channel_setup_queue(struct tegra_channel *chan,
  {
  	int ret = 0;
  
@@ -87,7 +89,7 @@ index 69d7652..871ab61 100644
  	*nbuffers = clamp(*nbuffers, CAPTURE_MIN_BUFFERS, CAPTURE_MAX_BUFFERS);
  
  	ret = tegra_channel_alloc_buffer_queue(chan, *nbuffers);
-@@ -609,14 +631,41 @@ static void vi5_capture_dequeue(struct tegra_channel *chan,
+@@ -609,14 +633,41 @@ static void vi5_capture_dequeue(struct tegra_channel *chan,
  		buf->vb2_state = VB2_BUF_STATE_ERROR;
  	else
  		buf->vb2_state = VB2_BUF_STATE_DONE;
@@ -131,7 +133,7 @@ index 69d7652..871ab61 100644
  	if (err == -ETIMEDOUT) {
  		chan->capture_state = CAPTURE_TIMEOUT;
  		buf->vb2_state = VB2_BUF_STATE_QUEUED;
-@@ -633,6 +682,13 @@ rel_buf:
+@@ -633,6 +684,13 @@ rel_buf:
  static void vi5_unit_get_device_handle(struct platform_device *pdev,
  			uint32_t csi_stream_id, struct device **dev);
  

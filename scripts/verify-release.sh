@@ -74,6 +74,12 @@ python3 "$REPO_ROOT/scripts/check-modversions.py" \
   --stock-camera "$stock_modules/drivers/media/platform/tegra/camera/tegra-camera.ko" \
   build/tegra-camera.ko build/ecam_yuv_gmsl.ko
 
+echo "== Checking the patched VI keeps its capture timeout control"
+# Without it capture_timeout_ms stays 0 and every capture times out at once.
+grep -aq "Override capture timeout ms" build/tegra-camera.ko \
+  || { echo "tegra-camera.ko lost the VI capture timeout control" >&2; exit 1; }
+echo "  capture timeout control present"
+
 echo "== Checking depmod prefers the rebuilt modules"
 kver=$(basename "$(dirname "$stock_modules")")
 fake=$PWD/depmod-root
