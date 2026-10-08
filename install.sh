@@ -267,7 +267,8 @@ install -D -m 0644 "$build_dir/ecam_yuv_gmsl.ko" "/lib/modules/$KVER/$MODULE_SUB
 # it, so apt upgrades stay clean and uninstall restores the stock module.
 cat >"$DEPMOD_CONF" <<EOF
 # Installed by jetson-ecam-gmsl for kernel $KVER (L4T $l4t)
-override tegra_camera $KVER $MODULE_SUBDIR
+# kmod matches overrides against the module file name, so tegra-camera keeps its dash.
+override tegra-camera $KVER $MODULE_SUBDIR
 override ecam_yuv_gmsl $KVER $MODULE_SUBDIR
 EOF
 depmod -a "$KVER"

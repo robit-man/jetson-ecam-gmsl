@@ -73,6 +73,25 @@ python3 "$REPO_ROOT/scripts/check-modversions.py" \
   --stock-modules "$stock_modules" \
   build/tegra-camera.ko build/ecam_yuv_gmsl.ko
 
+echo "== Checking depmod prefers the rebuilt modules"
+kver=$(basename "$(dirname "$stock_modules")")
+fake=$PWD/depmod-root
+rm -rf "$fake"
+mkdir -p "$fake/lib/modules/$kver" "$fake/etc/depmod.d"
+cp -a "$stock_modules" "$fake/lib/modules/$kver/"
+install -D -m 0644 build/tegra-camera.ko "$fake/lib/modules/$kver/extra/ecam-gmsl/tegra-camera.ko"
+install -D -m 0644 build/ecam_yuv_gmsl.ko "$fake/lib/modules/$kver/extra/ecam-gmsl/ecam_yuv_gmsl.ko"
+echo 'search updates ubuntu built-in' >"$fake/etc/depmod.d/ubuntu.conf"
+# Same override text install.sh writes.
+sed -n '/^override /p' "$REPO_ROOT/install.sh" \
+  | sed "s/\$KVER/$kver/; s#\$MODULE_SUBDIR#extra/ecam-gmsl#" >"$fake/etc/depmod.d/ecam-gmsl.conf"
+depmod -b "$fake" -C "$fake/etc/depmod.d" "$kver" 2>/dev/null
+for module in tegra_camera ecam_yuv_gmsl; do
+  resolved=$(modinfo -b "$fake" -k "$kver" -n "$module")
+  printf '  %-15s -> %s\n' "$module" "${resolved#"$fake"}"
+  [[ $resolved == */extra/ecam-gmsl/* ]] || { echo "depmod does not prefer the rebuilt $module" >&2; exit 1; }
+done
+
 echo "== Compiling and applying overlays"
 failures=0
 for dts in "$REPO_ROOT"/dts/tegra234-p3737-camera-overlay_*.dts; do
