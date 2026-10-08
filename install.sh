@@ -32,8 +32,8 @@ Usage: sudo ./install.sh [options]
 
   --camera 20|21|25|81   e-con product (NileCAM/STURDeCAM number); defaults to
                          the previously installed camera, then $ECAM_CAMERA, then 81
-  --vendor-package PATH  e-con release tarball or directory holding the MCU
-                         firmware (*_mcu_fw.bin); searched automatically
+  --vendor-package PATH  use MCU firmware from an e-con release tarball or
+                         directory instead of the bundled firmware/
   --build-only           build and verify, but install nothing
   --if-needed            do nothing when this kernel, camera and source are
                          already installed (used by deploy tools and at boot)
@@ -100,7 +100,7 @@ log "Detected L4T $l4t, kernel $KVER"
 
 # Identity of what would be installed: the driver, patches, overlays and
 # scripts in this checkout. A kernel, camera or source change forces a rebuild.
-SOURCE_ID=$(cd "$REPO_ROOT" && find driver dts releases scripts install.sh -type f \
+SOURCE_ID=$(cd "$REPO_ROOT" && find driver dts firmware releases scripts install.sh -type f \
   ! -name '*.pyc' -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -c1-16)
 previous_kver=""
 if [[ -r $STATE_DIR/installed ]]; then
@@ -141,6 +141,7 @@ find_firmware() {
   local candidate
   local search=()
   [[ -n $VENDOR_PACKAGE ]] && search+=("$VENDOR_PACKAGE")
+  search+=("$REPO_ROOT/firmware/$FIRMWARE")
   search+=("$REPO_ROOT" "$PWD" "$SUDO_HOME/Desktop" "$SUDO_HOME/Downloads" "$SUDO_HOME")
   [[ -f /lib/firmware/$FIRMWARE ]] && search+=("/lib/firmware/$FIRMWARE")
   for candidate in "${search[@]}"; do

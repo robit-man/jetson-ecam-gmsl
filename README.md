@@ -9,11 +9,9 @@ reflashing, without replacing the kernel `Image`, and without a full kernel or
 git clone https://github.com/robit-man/jetson-ecam-gmsl.git && cd jetson-ecam-gmsl && sudo ./install.sh --camera 81
 ```
 
-Copy e-con's release tarball
-(`e-CAM_YUV-GMSL-PRODUCTS_JETSON_AGX_ORIN_*.tar.xz`) to `~/Desktop`,
-`~/Downloads` or `~` first, or pass `--vendor-package PATH`. The MCU firmware
-inside it is e-con's and is not redistributed here. Reboot when the installer
-finishes, then check `v4l2-ctl --list-devices`.
+Reboot when the installer finishes, then check `v4l2-ctl --list-devices`.
+The e-con MCU firmware is bundled in `firmware/`, so no vendor download is
+needed. `--vendor-package PATH` overrides it with firmware from an e-con release.
 
 ## Why no kernel rebuild is needed on JetPack 7.2.1
 
@@ -115,5 +113,7 @@ gst-launch-1.0 v4l2src device=/dev/video0 ! 'video/x-raw,format=UYVY' ! fakesink
 ## License
 
 `driver/`, `dts/` and the NVIDIA camera patches are GPL-2.0, as published by
-e-con Systems and NVIDIA. The scripts are GPL-2.0 as well. e-con's MCU
-firmware and applications are not included.
+e-con Systems and NVIDIA. The scripts are GPL-2.0 as well. `firmware/` holds
+e-con Systems' MCU firmware from their JetPack 6.0 R03 release package
+(© e-con Systems, all rights reserved). It is not covered by the GPL and is
+included unmodified so cameras can be set up without a manual download.
